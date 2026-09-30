@@ -21,6 +21,19 @@ function favicon () {
   return utils.extractFilename(config.get('application.favicon'))
 }
 
+function sanitizePug (str: string): string {
+  if (!str) return ''
+  let sanitized = str.replace(/[\r\n]+/g, '')
+  sanitized = sanitized.replace(/\\/g, '\\\\')
+  sanitized = sanitized.replace(/#{/g, '\\#{')
+  sanitized = sanitized.replace(/!{/g, '\\!{')
+  sanitized = sanitized.replace(/#\[/g, '\\#[')
+  if (!sanitized.startsWith('\\')) {
+    sanitized = '\\' + sanitized
+  }
+  return sanitized
+}
+
 export function getUserProfile () {
   return async (req: Request, res: Response, next: NextFunction) => {
     let template: string
@@ -73,19 +86,19 @@ export function getUserProfile () {
         if (!isSafe) {
           throw new Error('Unsafe code execution blocked')
         }
-        username = eval(code) // eslint-disable-line no-eval
+        username = sanitizePug(String(eval(code))) // eslint-disable-line no-eval
       } catch (err) {
-        username = '\\' + username
+        username = sanitizePug(username)
       }
-    } else {
-      username = '\\' + username
+    } else if (username) {
+      username = sanitizePug(username)
     }
 
     const themeKey = config.get<string>('application.theme') as keyof typeof themes
     const theme = themes[themeKey] || themes['bluegrey-lightgreen']
 
     if (username) {
-      template = template.replace(/_username_/g, username)
+      template = template.replace(/_username_/g, () => username)
     }
     template = template.replace(/_emailHash_/g, security.hash(user?.email))
     template = template.replace(/_title_/g, entities.encode(config.get<string>('application.name')))
